@@ -1,0 +1,97 @@
+{
+  "info": {
+    "name": "Health AI - Appointment API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Login",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/auth/login",
+          "host": ["{{base_url}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "2. Get Doctors",
+      "request": {
+        "method": "GET",
+        "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+        "url": {
+          "raw": "{{base_url}}/api/doctors",
+          "host": ["{{base_url}}"],
+          "path": ["api", "doctors"]
+        }
+      }
+    },
+    {
+      "name": "3. Book Appointment",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{token}}"},
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"doctorId\": \"{{doctorId}}\",\n  \"date\": \"2024-12-15\",\n  \"time\": \"10:30 AM\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/appointments/book",
+          "host": ["{{base_url}}"],
+          "path": ["api", "appointments", "book"]
+        }
+      }
+    },
+    {
+      "name": "4. My Appointments",
+      "request": {
+        "method": "GET",
+        "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+        "url": {
+          "raw": "{{base_url}}/api/appointments/my",
+          "host": ["{{base_url}}"],
+          "path": ["api", "appointments", "my"]
+        }
+      }
+    },
+    {
+      "name": "5. Cancel Appointment",
+      "request": {
+        "method": "PUT",
+        "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+        "url": {
+          "raw": "{{base_url}}/api/appointments/cancel/{{appointmentId}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "appointments", "cancel", "{{appointmentId}}"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "doctorId",
+      "value": ""
+    },
+    {
+      "key": "appointmentId",
+      "value": ""
+    }
+  ]
+}
