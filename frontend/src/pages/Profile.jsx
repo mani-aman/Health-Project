@@ -152,7 +152,8 @@ const Profile = () => {
         <div className="card p-8 text-center hover:shadow-xl transition-shadow">
           <h3 className="text-xl font-semibold text-gray-900 mb-2">Medical Records</h3>
           <p className="text-gray-500 mb-6">Upload & manage documents</p>
-          <button onClick={() => toast('Records upload coming soon!')} className="btn-primary px-6 py-2 text-sm">Upload Record</button>
+          <button onClick={() => navigate('/medical-records')} className="btn-primary px-6 py-2 text-sm">Upload Record</button>
+
 
         </div>
         <div className="card p-8 text-center hover:shadow-xl transition-shadow">

@@ -32,7 +32,11 @@ export const useAuthStore = createWithEqualityFn(
           toast.success("Login successful!");
           return data;
         } catch (error) {
-          toast.error(error.response?.data?.message || "Login failed");
+          toast.error(
+            error.response?.data?.error ||
+              error.response?.data?.message ||
+              "Login failed",
+          );
           throw error;
         } finally {
           set({ isLoading: false });
@@ -58,6 +62,12 @@ export const useAuthStore = createWithEqualityFn(
       logout: () => {
         set({ user: null, token: null });
         toast.success("Logged out");
+
+        // Always send the user back to the Welcome page
+        // (covers logout triggers from any portal/page)
+        if (typeof window !== "undefined") {
+          window.location.replace("/");
+        }
       },
     }),
     {

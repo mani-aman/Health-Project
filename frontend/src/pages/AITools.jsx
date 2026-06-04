@@ -32,6 +32,7 @@ const AITools = () => {
 
   const workoutMutation = useMutation({
     mutationFn: (data) => workoutApi.post('/workout/workout', data),
+
     onSuccess: (res) => {
       toast.success('Workout plan generated!')
       setWorkoutResult(res.data)
@@ -206,7 +207,12 @@ const AITools = () => {
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && sendChat()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  sendChat()
+                }
+              }}
               placeholder="Ask HealthAI..."
               className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-200 focus:border-transparent"
             />

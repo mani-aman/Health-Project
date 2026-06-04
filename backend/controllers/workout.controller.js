@@ -2,15 +2,51 @@ const OpenAI = require("openai");
 const Workout = require("../models/workout.model");
 
 let openai;
-try {
-  if (process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+const openaiClient = (() => {
+  try {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+    if (!apiKey) return null;
+
+    const baseURL =
+      process.env.OPENROUTER_BASE_URL ||
+      process.env.OPENAI_BASE_URL ||
+      "https://openrouter.ai/api/v1";
+
+    // If OpenRouter key is present, use OpenRouter-compatible endpoint.
+    if (process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_BASE_URL) {
+      return new OpenAI({
+        apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY,
+        baseURL,
+      });
+    }
+
+    // Fallback to OpenAI (default baseURL)
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  } catch (e) {
+    console.log("OpenAI/OpenRouter workout client init failed, using mock...");
+    return null;
   }
-} catch (e) {
-  console.log("OpenAI workout not configured, skipping...");
-}
+})();
+
+openai = openaiClient;
+
+const getOpenAICompatibleClient = () => {
+  if (process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_BASE_URL) {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+    const baseURL =
+      process.env.OPENROUTER_BASE_URL ||
+      process.env.OPENAI_BASE_URL ||
+      "https://openrouter.ai/api/v1";
+
+    if (apiKey) {
+      return new OpenAI({ apiKey, baseURL });
+    }
+  }
+  if (process.env.OPENAI_API_KEY) {
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return null;
+};
 
 // 🎭 Mock workout generator for when OpenAI is unavailable
 const getMockWorkout = (weight, height, bmi, goal) => {
@@ -96,10 +132,27 @@ Return ONLY JSON:
         temperature: 0.7,
       });
 
-      let result = completion.choices[0].message.content;
-      // clean JSON
+      let result = completion.choices?.[0]?.message?.content;
+      if (typeof result !== "string")
+        throw new Error("AI returned empty content");
+
+      // clean fences and attempt robust extraction
       result = result.replace(/```json|```/g, "");
-      parsed = JSON.parse(result);
+
+      const firstObj = result.indexOf("{");
+      const firstArr = result.indexOf("[");
+
+      let start = -1;
+      if (firstObj !== -1 && firstArr !== -1)
+        start = Math.min(firstObj, firstArr);
+      else start = firstObj !== -1 ? firstObj : firstArr;
+
+      if (start !== -1) {
+        const candidate = result.slice(start);
+        parsed = JSON.parse(candidate);
+      } else {
+        parsed = JSON.parse(result);
+      }
     } else {
       // Fallback mock response
       parsed = getMockWorkout(weight, height, bmi, goal);
@@ -123,10 +176,21 @@ Return ONLY JSON:
   } catch (error) {
     console.error("Workout AI Error:", error);
 
-    res.status(500).json({
-      success: false,
-      message: "Workout generation failed",
-    });
+    // If AI fails to parse/return JSON, fall back to mock plan to keep UX working.
+    try {
+      const fallback = getMockWorkout(weight, height, bmi, goal);
+      return res.json({
+        success: true,
+        bmi,
+        plan: fallback.plan,
+        fallback: true,
+      });
+    } catch (fallbackErr) {
+      return res.status(500).json({
+        success: false,
+        message: "Workout generation failed",
+      });
+    }
   }
 };
 

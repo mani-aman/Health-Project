@@ -261,7 +261,9 @@ exports.doctorSignup = async (req, res) => {
 // 🔹 Login
 exports.login = async (req, res) => {
   try {
+    // Debug: log login payload safely (no password)
     const { email, password } = req.body;
+    console.log("Login attempt:", { email, hasPassword: Boolean(password) });
 
     // ✅ validation
     if (!email || !password) {
@@ -311,9 +313,13 @@ exports.login = async (req, res) => {
     });
   } catch (err) {
     console.error("Login Error:", err);
+    console.error("Login Error Stack:", err?.stack);
+    // Return detailed error message in dev (so frontend shows it)
     return res.status(500).json({
       success: false,
       message: "Server error",
+      error: err?.message || String(err),
+      stack: err?.stack,
     });
   }
 };

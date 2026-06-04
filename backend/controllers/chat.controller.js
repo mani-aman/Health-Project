@@ -1,17 +1,39 @@
 const OpenAI = require("openai");
+
+const getOpenAICompatibleClient = () => {
+  // Prefer OpenRouter (OpenAI-compatible)
+  if (process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_BASE_URL) {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+    const baseURL =
+      process.env.OPENROUTER_BASE_URL ||
+      process.env.OPENAI_BASE_URL ||
+      "https://openrouter.ai/api/v1";
+
+    if (apiKey) {
+      return new OpenAI({ apiKey, baseURL });
+    }
+  }
+
+  // Fallback to OpenAI
+  if (process.env.OPENAI_API_KEY) {
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+
+  return null;
+};
 const Chat = require("../models/Chat.model");
 
-// ✅ OpenAI setup
-let openai;
-try {
-  if (process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+// ✅ OpenAI/OpenRouter setup
+const openai = (() => {
+  try {
+    const client = getOpenAICompatibleClient();
+    if (!client) console.log("OpenAI/OpenRouter not configured, using mock...");
+    return client;
+  } catch (e) {
+    console.log("OpenAI/OpenRouter client init failed, using mock...");
+    return null;
   }
-} catch (e) {
-  console.log("OpenAI not configured, skipping...");
-}
+})();
 
 // 🎭 Mock reply generator for when OpenAI is unavailable
 const getMockReply = (message) => {
@@ -47,7 +69,7 @@ const chatWithAI = async (req, res) => {
 
     if (openai) {
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
         messages: [
           {
             role: "system",

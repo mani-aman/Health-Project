@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore.js'
@@ -17,8 +17,10 @@ import {
   FiUser,
   FiDollarSign
 } from 'react-icons/fi'
+import AppointmentDateTimeModal from '../components/AppointmentDateTimeModal.jsx'
 
 const Dashboard = () => {
+
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
@@ -41,7 +43,8 @@ const Dashboard = () => {
 
   const { data: prescriptions, isLoading: prescLoading } = useQuery({
     queryKey: ['prescriptions'],
-    queryFn: () => api.get('/users/prescriptions').then(res => res.data),
+queryFn: () => api.get('/prescriptions/mine').then(res => res.data).catch(e=>{console.error('prescriptions fetch failed',e); throw e}),
+    staleTime: 0,
     onError: (err) => console.error('Failed to load prescriptions', err),
   })
 
@@ -81,12 +84,18 @@ const Dashboard = () => {
 
   const bookMutation = useMutation({
     mutationFn: ({ doctorId, date, time }) => api.post('/appointments/book', { doctorId, date, time }),
+    onMutate: () => {
+      // Keep the success toast from stacking/lingering for long periods
+      // by ensuring loading->success uses a stable toast id.
+      toast.loading('Booking appointment...')
+    },
     onSuccess: () => {
       toast.success('Appointment booked successfully!')
       queryClient.invalidateQueries({ queryKey: ['appointments'] })
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Booking failed'),
   })
+
 
   const appointments = appointmentsData || []
   const notifications = notificationsData?.notifications || []
@@ -109,12 +118,20 @@ const Dashboard = () => {
   }
   const bmiStatus = getBmiStatus(bmi)
 
-  const handleBook = (doctorId) => {
-    const date = prompt('Enter date (YYYY-MM-DD):')
-    const time = prompt('Enter time (e.g., 10:30 AM):')
-    if (!date || !time) return
-    bookMutation.mutate({ doctorId, date, time })
+  const [bookingModalOpen, setBookingModalOpen] = useState(false)
+  const [pendingDoctorId, setPendingDoctorId] = useState(null)
+
+  const openBooking = (doctorId) => {
+    setPendingDoctorId(doctorId)
+    setBookingModalOpen(true)
   }
+
+  const handleBookConfirm = ({ date, time }) => {
+    if (!pendingDoctorId) return
+    bookMutation.mutate({ doctorId: pendingDoctorId, date, time })
+  }
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -299,7 +316,8 @@ const Dashboard = () => {
                         )}
                       </div>
                       <button
-                        onClick={() => handleBook(doctor._id)}
+                        onClick={() => openBooking(doctor._id)}
+
                         disabled={bookMutation.isLoading}
                         className="w-full py-2 btn-primary text-sm font-medium transition-colors"
                       >
@@ -413,8 +431,16 @@ const Dashboard = () => {
                       <p className="text-sm text-gray-500">Your latest medications</p>
                     </div>
                   </div>
+                  <button
+                    onClick={() => navigate('/prescriptions')}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    View all →
+                  </button>
                 </div>
+
                 <div className="space-y-3">
+
                   {prescriptions.slice(0, 3).map(presc => (
                     <div key={presc._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                       <div>
@@ -534,9 +560,30 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      <AppointmentDateTimeModal
+        open={bookingModalOpen}
+        onClose={() => {
+          setBookingModalOpen(false)
+          setPendingDoctorId(null)
+        }}
+        title="Select Appointment Date"
+        onConfirm={(payload) => {
+          handleBookConfirm(payload)
+          setBookingModalOpen(false)
+          setPendingDoctorId(null)
+        }}
+      />
     </div>
   )
 }
 
+
 export default Dashboard;
+
+
+
+
+
+
 

@@ -63,3 +63,26 @@ exports.getPrescriptionsForPatient = async (req, res) => {
     res.status(500).json({ msg: "Error fetching prescriptions for patient" });
   }
 };
+
+// Get prescriptions for logged-in patient
+exports.getPatientPrescriptions = async (req, res) => {
+  try {
+    const patientId = req.user.id;
+
+    const appointments = await Appointment.find({ userId: patientId }).select(
+      "_id",
+    );
+    const appointmentIds = appointments.map((a) => a._id);
+
+    const prescriptions = await Prescription.find({
+      appointmentId: { $in: appointmentIds },
+    })
+      .populate("appointmentId", "date time status")
+      .populate("doctorId", "firstName lastName")
+      .sort({ createdAt: -1 });
+
+    res.json(prescriptions);
+  } catch (err) {
+    res.status(500).json({ msg: "Error fetching patient prescriptions" });
+  }
+};

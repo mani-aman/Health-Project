@@ -10,10 +10,17 @@ import Doctors from './pages/Doctors.jsx'
 import Profile from './pages/Profile.jsx'
 import AdminLogin from './pages/AdminLogin.jsx'
 import AdminDashboard from './pages/AdminDashboard.jsx'
+import AdminSignup from './pages/AdminSignup.jsx'
 import AITools from './pages/AITools.jsx'
+
 import Navbar from './components/Navbar.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import { useEffect } from 'react'
+import Welcome from './pages/Welcome.jsx'
+import Prescriptions from './pages/Prescriptions.jsx'
+import MedicalRecords from './pages/MedicalRecords.jsx'
+
+
 
 function App() {
   const { checkAuth, isLoading } = useAuthStore()
@@ -38,7 +45,9 @@ function App() {
           <Route path="/doctor/register" element={!useAuthStore.getState().token ? <DoctorRegister /> : <Navigate to="/doctor/dashboard" />} />
           <Route path="/register" element={!useAuthStore.getState().token ? <Register /> : <Navigate to="/dashboard" />} />
           <Route path="/admin/login" element={!useAuthStore.getState().token ? <AdminLogin /> : <Navigate to="/admin" />} />
-          <Route path="/" element={<Navigate to="/dashboard" />} />
+          <Route path="/admin/signup" element={!useAuthStore.getState().token ? <AdminSignup /> : <Navigate to="/admin" />} />
+
+          <Route path="/" element={<Welcome />} />
           <Route path="/dashboard" element={
             <ProtectedRoute>
               {useAuthStore.getState().user?.role === 'doctor' ? <Navigate to="/doctor/dashboard" /> : <Dashboard />}
@@ -47,8 +56,12 @@ function App() {
           <Route path="/doctor/dashboard" element={<ProtectedRoute allowedRoles={['doctor']}><DoctorDashboard /></ProtectedRoute>} />
           <Route path="/doctors" element={<ProtectedRoute><Doctors /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/prescriptions" element={<ProtectedRoute><Prescriptions /></ProtectedRoute>} />
+          <Route path="/medical-records" element={<ProtectedRoute><MedicalRecords /></ProtectedRoute>} />
           <Route path="/ai-tools" element={<ProtectedRoute><AITools /></ProtectedRoute>} />
+
           <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+
         </Routes>
       </div>
     </Router>

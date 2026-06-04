@@ -295,7 +295,8 @@ const AdminDashboard = () => {
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
+
         .tab-btn {
           display: flex;
           align-items: center;
