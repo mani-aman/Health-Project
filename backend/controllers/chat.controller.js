@@ -21,7 +21,7 @@ const getOpenAICompatibleClient = () => {
 
   return null;
 };
-const Chat = require("../models/Chat.model");
+const Chat = require("../models/chat.model");
 
 // ✅ OpenAI/OpenRouter setup
 const openai = (() => {
