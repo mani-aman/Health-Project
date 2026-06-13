@@ -1,8 +1,13 @@
 import axios from "axios";
 import { useAuthStore } from "../stores/authStore.js";
 
+// const api = axios.create({
+//   baseURL: "http://127.0.0.1:5000/api", // bypass Vite proxy issues
+//   headers: {},
+// });
+
 const api = axios.create({
-  baseURL: "http://127.0.0.1:5000/api", // bypass Vite proxy issues
+  baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api",
   headers: {},
 });
 
