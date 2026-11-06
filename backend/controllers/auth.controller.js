@@ -183,28 +183,40 @@ exports.login = async (req, res) => {
         .json({ success: false, message: "Email and password are required" });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log(`[LOGIN] Attempting login for email: ${normalizedEmail}`);
+
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
+      console.log(`[LOGIN] User not found: ${normalizedEmail}`);
       // Generic message — do not reveal whether email exists
       return res
         .status(401)
         .json({ success: false, message: "Invalid credentials" });
     }
 
+    console.log(`[LOGIN] User found: ${user.email}, role: ${user.role}, status: ${user.status}`);
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.log(`[LOGIN] Password mismatch for: ${normalizedEmail}`);
       return res
         .status(401)
         .json({ success: false, message: "Invalid credentials" });
     }
 
+    console.log(`[LOGIN] Password verified for: ${normalizedEmail}`);
+
     if (user.status === "blocked" || user.status === "inactive") {
+      console.log(`[LOGIN] Account ${normalizedEmail} is ${user.status}`);
       return res
         .status(403)
         .json({ success: false, message: "Account is disabled. Contact support." });
     }
 
     const token = signToken(user);
+
+    console.log(`[LOGIN] Login successful for: ${normalizedEmail} (role: ${user.role})`);
 
     return res.status(200).json({
       success: true,
@@ -214,7 +226,7 @@ exports.login = async (req, res) => {
     });
   } catch (err) {
     // ⚠️ Never expose err.stack or err.message in production responses
-    console.error("Login error:", err.message);
+    console.error("[LOGIN] Login error:", err.message);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };

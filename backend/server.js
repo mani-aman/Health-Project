@@ -83,9 +83,15 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 // ─── DB + bootstrap ───────────────────────────────────────────────────────────
-connectDB().then(async () => {
-  await bootstrapProtectedAdmin();
-});
+connectDB()
+  .then(async () => {
+    console.log("✅ MongoDB connection established");
+    await bootstrapProtectedAdmin();
+  })
+  .catch((err) => {
+    console.error("❌ Database connection or bootstrap failed:", err.message);
+    // Don't exit — let server run without DB and show clear error messages on requests
+  });
 
 // ─── Static uploads (authenticated via API; direct serve disabled for medical files) ─
 // Medical files must be accessed through the authenticated /api/users/records/:id/download endpoint.

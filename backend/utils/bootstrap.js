@@ -48,9 +48,13 @@ const bootstrapProtectedAdmin = async () => {
       return;
     }
 
+    console.log(
+      `📝 Bootstrap: Creating Protected Admin account (${email})...`,
+    );
+
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    await User.create({
+    const newAdmin = await User.create({
       firstName: process.env.PROTECTED_ADMIN_FIRST_NAME || "Protected",
       lastName: process.env.PROTECTED_ADMIN_LAST_NAME || "Admin",
       email: email.toLowerCase().trim(),
@@ -60,10 +64,16 @@ const bootstrapProtectedAdmin = async () => {
     });
 
     console.log(
-      `✅ Bootstrap: protected_admin account created for ${email}.`,
+      `✅ Bootstrap: protected_admin account created successfully.`,
     );
+    console.log(`   Email: ${newAdmin.email}`);
+    console.log(`   Role: ${newAdmin.role}`);
+    console.log(`   Status: ${newAdmin.status}`);
   } catch (err) {
     console.error("❌ Bootstrap error:", err.message);
+    if (err.code === 11000) {
+      console.error("   This is a duplicate key error — an account with this email already exists.");
+    }
   }
 };
 
