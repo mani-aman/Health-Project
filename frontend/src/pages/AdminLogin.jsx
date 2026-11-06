@@ -14,11 +14,12 @@ const AdminLogin = () => {
     setLoading(true)
     try {
       const data = await login(formData)
-      if (data.user.role !== 'admin') {
+      const role = data.user.role
+      if (role !== 'admin' && role !== 'protected_admin') {
         toast.error('Admin access only. Please use patient or doctor login.')
         return
       }
-      navigate('/admin')
+      navigate('/protected-admin')
     } catch {
       // Error handled in store
     } finally {

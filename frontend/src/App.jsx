@@ -57,10 +57,13 @@ function App() {
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-blue-50">
         <Navbar />
         <Routes>
-          {/* ── Landing ─────────────────────────────────────────────────── */}
-          <Route path="/" element={<Welcome />} />
+          {/* ── Home: logged-in users go to their dashboard, others go to /auth ─── */}
+          <Route path="/" element={token ? <Navigate to={ROLE_HOME[user?.role] || '/dashboard'} replace /> : <Navigate to="/auth" replace />} />
 
-          {/* ── Single auth page ────────────────────────────────────────── */}
+          {/* ── Landing (deprecated, kept for compatibility) ───────────────────── */}
+          <Route path="/welcome" element={<Welcome />} />
+
+          {/* ── Single unified auth page ────────────────────────────────────────── */}
           <Route path="/auth" element={authElement} />
 
           {/* Legacy login URLs → redirect to single auth page */}

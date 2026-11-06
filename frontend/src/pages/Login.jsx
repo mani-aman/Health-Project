@@ -14,7 +14,8 @@ const Login = () => {
     setLoading(true)
     try {
       const data = await login(formData)
-      if (data.user.role !== 'patient') {
+      const role = data.user.role
+      if (role !== 'user' && role !== 'patient') {
         logout()
         toast.error('This portal is for patients only. Doctors and staff must use their dedicated login.')
         return
