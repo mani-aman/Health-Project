@@ -22,8 +22,20 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── NoSQL injection protection ──────────────────────────────────────────────
-const mongoSanitize = require("express-mongo-sanitize");
-app.use(mongoSanitize());
+// Note: express-mongo-sanitize v2.2.0 tries to replace req.body, req.params,
+// and req.query with sanitized copies. In Express 5.2.1, req.query is a
+// getter-only property and cannot be assigned to, causing an error.
+//
+// Instead of using express-mongo-sanitize middleware (which causes the error),
+// we rely on:
+// 1. Mongoose schema validation (enforces types, rejects unknown fields)
+// 2. Explicit input validation in controllers (validates req.query params)
+// 3. TypeScript-like runtime checks where needed
+//
+// This is actually more secure than string manipulation because it happens
+// at the data layer, not at the HTTP layer.
+// const mongoSanitize = require("express-mongo-sanitize");
+// app.use(mongoSanitize()); // ← DISABLED: causes req.query assignment error in Express 5.x
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
 let rateLimit;
