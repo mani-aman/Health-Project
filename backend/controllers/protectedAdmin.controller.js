@@ -252,6 +252,10 @@ exports.createDoctor = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // For Protected Admin (env-based, not in MongoDB), use createdBy: null
+    // For Super Admin (real MongoDB user), use createdBy: req.user._id
+    const createdBy = req.user._id === "protected-admin-env" ? null : req.user._id;
+
     const user = await User.create({
       firstName, lastName,
       email: email.toLowerCase().trim(),
@@ -259,7 +263,7 @@ exports.createDoctor = async (req, res) => {
       password: hashedPassword,
       role: "doctor",
       status: "active",
-      createdBy: req.user._id,
+      createdBy,
     });
 
     const doctor = await Doctor.create({
@@ -368,6 +372,10 @@ exports.createSuperAdmin = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // For Protected Admin (env-based, not in MongoDB), use createdBy: null
+    // For Super Admin (real MongoDB user), use createdBy: req.user._id
+    const createdBy = req.user._id === "protected-admin-env" ? null : req.user._id;
+
     const superAdmin = await User.create({
       firstName, lastName,
       email: email.toLowerCase().trim(),
@@ -375,7 +383,7 @@ exports.createSuperAdmin = async (req, res) => {
       password: hashedPassword,
       role: "super_admin",
       status: "active",
-      createdBy: req.user._id,
+      createdBy,
     });
 
     await AuditLog.create({
