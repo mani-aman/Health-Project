@@ -2,11 +2,16 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/auth.model");
 
 /**
- * authenticate – verifies JWT and attaches the LIVE DB user to req.user.
+ * authenticate – verifies JWT and attaches the user to req.user.
  *
- * We reload the user from the database on every request so that:
- *  - Blocked/deleted accounts are rejected even if they hold a valid token.
- *  - The role in req.user always comes from the DB, never from the JWT payload alone.
+ * For Protected Admin (from .env):
+ *  - Returns a synthetic user object based on JWT email
+ *  - Does NOT query MongoDB
+ *
+ * For all other users:
+ *  - Reloads from the database on every request so that:
+ *    - Blocked/deleted accounts are rejected even if they hold a valid token.
+ *    - The role in req.user always comes from the DB, never from the JWT payload alone.
  */
 const authenticate = async (req, res, next) => {
   try {
@@ -30,7 +35,27 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ message: "Token invalid or expired" });
     }
 
-    // Reload user from DB — this is the source of truth for role and status
+    // ─── Check if this is a Protected Admin token (from .env) ───────────────────────
+    const protectedAdminEmail = (process.env.PROTECTED_ADMIN_EMAIL || "").toLowerCase().trim();
+    
+    if (protectedAdminEmail && decoded.email === protectedAdminEmail && decoded.id === "protected-admin-env") {
+      console.log(`[AUTH] Protected Admin token validated: ${decoded.email}`);
+      
+      // Return synthetic Protected Admin user object without querying MongoDB
+      req.user = {
+        _id: "protected-admin-env",
+        id: "protected-admin-env",
+        firstName: process.env.PROTECTED_ADMIN_FIRST_NAME || "Protected",
+        lastName: process.env.PROTECTED_ADMIN_LAST_NAME || "Admin",
+        email: protectedAdminEmail,
+        role: "protected_admin",
+        status: "active",
+      };
+      next();
+      return;
+    }
+
+    // ─── All other users — reload from MongoDB ──────────────────────────────────────
     const user = await User.findById(decoded.id).select("-password");
     if (!user) {
       return res.status(401).json({ message: "Account not found" });

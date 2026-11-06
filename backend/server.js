@@ -4,6 +4,34 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
+// ─── Environment Validation ────────────────────────────────────────────────
+// Validate critical configuration at startup
+const validateEnvironment = () => {
+  const required = ["JWT_SECRET", "MONGO_URI"];
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length > 0) {
+    console.error(`❌ Missing required environment variables: ${missing.join(", ")}`);
+    process.exit(1);
+  }
+
+  // Protected Admin configuration check
+  const protectedAdminEmail = (process.env.PROTECTED_ADMIN_EMAIL || "").trim();
+  const protectedAdminPassword = process.env.PROTECTED_ADMIN_PASSWORD;
+
+  if (protectedAdminEmail && !protectedAdminPassword) {
+    console.warn(`⚠️  PROTECTED_ADMIN_EMAIL is set but PROTECTED_ADMIN_PASSWORD is missing`);
+    console.warn(`    Protected Admin login will NOT work. Set both or neither.`);
+  } else if (!protectedAdminEmail && protectedAdminPassword) {
+    console.warn(`⚠️  PROTECTED_ADMIN_PASSWORD is set but PROTECTED_ADMIN_EMAIL is missing`);
+    console.warn(`    Protected Admin login will NOT work. Set both or neither.`);
+  } else if (protectedAdminEmail && protectedAdminPassword) {
+    console.log(`✅ Protected Admin configuration valid (email: ${protectedAdminEmail})`);
+  }
+};
+
+validateEnvironment();
+
 const connectDB = require("./db/db");
 const bootstrapProtectedAdmin = require("./utils/bootstrap");
 

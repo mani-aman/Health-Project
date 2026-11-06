@@ -186,6 +186,47 @@ exports.login = async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     console.log(`[LOGIN] Attempting login for email: ${normalizedEmail}`);
 
+    // ─── Protected Admin authentication (from .env, NOT MongoDB) ─────────────────────
+    const protectedAdminEmail = (process.env.PROTECTED_ADMIN_EMAIL || "").toLowerCase().trim();
+    const protectedAdminPassword = process.env.PROTECTED_ADMIN_PASSWORD;
+
+    if (protectedAdminEmail && protectedAdminPassword && normalizedEmail === protectedAdminEmail) {
+      console.log(`[LOGIN] Protected Admin credential match detected for: ${normalizedEmail}`);
+
+      // Verify password directly against .env (NOT bcrypt, since .env has plaintext)
+      if (password === protectedAdminPassword) {
+        console.log(`[LOGIN] Protected Admin password verified`);
+
+        // Create a synthetic Protected Admin user object for JWT
+        // This object will NOT be persisted to MongoDB
+        const protectedAdminUser = {
+          _id: "protected-admin-env",
+          firstName: process.env.PROTECTED_ADMIN_FIRST_NAME || "Protected",
+          lastName: process.env.PROTECTED_ADMIN_LAST_NAME || "Admin",
+          email: protectedAdminEmail,
+          role: "protected_admin",
+          status: "active",
+        };
+
+        const token = signToken(protectedAdminUser);
+
+        console.log(`[LOGIN] Login successful for Protected Admin (role: protected_admin)`);
+
+        return res.status(200).json({
+          success: true,
+          message: "Login successful",
+          token,
+          user: safeUser(protectedAdminUser),
+        });
+      } else {
+        console.log(`[LOGIN] Protected Admin password mismatch`);
+        return res
+          .status(401)
+          .json({ success: false, message: "Invalid credentials" });
+      }
+    }
+
+    // ─── All other roles (Patient, Doctor, Super Admin) — query MongoDB ──────────────
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       console.log(`[LOGIN] User not found: ${normalizedEmail}`);
