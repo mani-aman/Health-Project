@@ -5,6 +5,79 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const { normalizeRole } = require("../middleware/auth.middleware");
 
+// ─── Nodemailer singleton ─────────────────────────────────────────────────────
+//
+// Design decisions:
+//
+// 1. SINGLETON — createTransport() is called at most once per process.
+//    Calling it per-request (the original bug) created a new TLSSocket on every
+//    signup, accumulating 'end' listeners and triggering MaxListenersExceededWarning.
+//
+// 2. POOL (pool: true) — uses SMTPPool instead of SMTPTransport.
+//    Without pool, each sendMail() still opens a fresh TLS connection and closes it
+//    after delivery.  The pool keeps up to maxConnections persistent connections,
+//    re-uses them across concurrent sends, and automatically removes/replaces a
+//    connection that errors out (self-healing on transient failures).
+//    maxConnections:2 is intentionally conservative for a welcome-email workload.
+//
+// 3. RACE-FREE INIT — the _creating flag prevents two concurrent calls from both
+//    reaching createTransport() before _transporter is assigned.  Node's event loop
+//    is single-threaded, so a simple boolean guard is sufficient and correct.
+//
+// 4. RESET PATH — resetTransporter() lets callers (and tests) clear the singleton
+//    after a permanent failure (e.g. credentials rotated, AUTH rejected) so the next
+//    call to getTransporter() will rebuild it with the current env vars.
+//    It also calls pool.close() to drain in-flight messages gracefully.
+
+let _transporter = null;
+let _creating    = false;   // guard against re-entrant init on the same tick
+
+const getTransporter = () => {
+  // Fast path — already built.
+  if (_transporter) return _transporter;
+
+  // No credentials configured — email is intentionally disabled.
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return null;
+
+  // Re-entrant guard: if a concurrent synchronous call already started building
+  // the transporter, return null for this call rather than double-creating.
+  if (_creating) return null;
+  _creating = true;
+
+  try {
+    _transporter = nodemailer.createTransport({
+      pool: true,           // SMTPPool — persistent connections, self-healing on error
+      maxConnections: 2,    // conservative ceiling for a low-volume welcome-email path
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      tls: { rejectUnauthorized: false },
+    });
+  } finally {
+    _creating = false;
+  }
+
+  return _transporter;
+};
+
+/**
+ * Reset the singleton.  Call this after a permanent SMTP failure (e.g. AUTH error,
+ * credentials rotation) so the next getTransporter() call rebuilds with fresh env vars.
+ * Safe to call from tests to isolate test cases from one another.
+ */
+const resetTransporter = () => {
+  if (_transporter) {
+    try {
+      // Drain queued messages and release pool connections gracefully.
+      _transporter.close();
+    } catch (_) {
+      // close() is best-effort; ignore errors during teardown.
+    }
+    _transporter = null;
+  }
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const signToken = (user) => {
@@ -25,15 +98,9 @@ const safeUser = (user) => ({
 });
 
 const sendWelcomeEmail = async (email, firstName, subject) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
+  const transporter = getTransporter();
+  if (!transporter) return;
   try {
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-      tls: { rejectUnauthorized: false },
-    });
     await transporter.sendMail({
       from: `"HealthAI" <${process.env.EMAIL_USER}>`,
       to: email,
@@ -41,8 +108,16 @@ const sendWelcomeEmail = async (email, firstName, subject) => {
       html: `<h2>Hello ${firstName}!</h2><p>Your HealthAI account has been created successfully.</p><p>Thanks,<br>HealthAI Team</p>`,
     });
   } catch (err) {
-    // Email failure must never break the signup flow
+    // Email failure must never break the signup flow.
     console.error("Email send failed:", err.message);
+
+    // Reset the singleton on permanent SMTP failures so the next call rebuilds
+    // the transporter with fresh credentials.  Transient errors (e.g. ECONNRESET)
+    // are handled internally by the pool and do not require a reset.
+    const permanentCodes = new Set(["EAUTH", "EENVELOPE", "EDNS", "ESOCKET"]);
+    if (err.code && permanentCodes.has(err.code)) {
+      resetTransporter();
+    }
   }
 };
 
@@ -154,3 +229,9 @@ exports.doctorSignup = async (req, res) => {
       "Public doctor registration is disabled. Doctor accounts are created by administrators.",
   });
 };
+
+// ─── Exported for testing only ────────────────────────────────────────────────
+// These are not part of the public HTTP API.
+exports._getTransporter   = getTransporter;
+exports._resetTransporter = resetTransporter;
+exports._sendWelcomeEmail = sendWelcomeEmail;
