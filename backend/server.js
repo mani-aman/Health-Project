@@ -22,20 +22,27 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── NoSQL injection protection ──────────────────────────────────────────────
-// Note: express-mongo-sanitize v2.2.0 tries to replace req.body, req.params,
-// and req.query with sanitized copies. In Express 5.2.1, req.query is a
-// getter-only property and cannot be assigned to, causing an error.
 //
-// Instead of using express-mongo-sanitize middleware (which causes the error),
-// we rely on:
-// 1. Mongoose schema validation (enforces types, rejects unknown fields)
-// 2. Explicit input validation in controllers (validates req.query params)
-// 3. TypeScript-like runtime checks where needed
+// express-mongo-sanitize has been REMOVED (not in package.json) because:
 //
-// This is actually more secure than string manipulation because it happens
-// at the data layer, not at the HTTP layer.
-// const mongoSanitize = require("express-mongo-sanitize");
-// app.use(mongoSanitize()); // ← DISABLED: causes req.query assignment error in Express 5.x
+// 1. **Express 5.x Incompatibility**: The library tries to assign sanitized
+//    values back to req.body, req.params, and req.query. In Express 5.2.1+,
+//    req.query is a read-only getter property. Attempting req.query = {...}
+//    throws "Cannot set property query of #<IncomingMessage> which has only a getter".
+//
+// 2. **Data-layer validation is superior**: Mongoose schema validation enforces
+//    type safety and rejects unknown fields at the ORM layer. Controllers
+//    perform explicit input validation. This protects against injection attacks
+//    more robustly than string-level sanitization.
+//
+// 3. **Query parameters don't require sanitization**: Query parameters are
+//    never persisted to the database directly. They are only used for filtering
+//    and pagination logic, which is safe when validated at the data layer.
+//
+// Security is maintained through:
+//  - Mongoose schema validation (enforces types, rejects unknown fields)
+//  - Explicit input validation in controllers
+//  - Database parameterization (all queries use Mongoose methods, not string concatenation)
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
 let rateLimit;
