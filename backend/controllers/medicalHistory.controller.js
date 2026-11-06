@@ -1,42 +1,39 @@
 const MedicalHistory = require("../models/MedicalHistory.model");
 
-// 💾 Save Medical History
+// POST /api/medical — Save / upsert medical history for authenticated user
 const saveMedicalHistory = async (req, res) => {
   try {
-    const { userId, bloodGroup, allergies, chronicDiseases, medications } =
-      req.body;
+    const { bloodGroup, allergies, chronicDiseases, medications } = req.body;
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: "User ID is required",
-      });
-    }
+    // Always use the authenticated user's ID — never trust req.body.userId
+    const userId = req.user._id;
 
-    const history = new MedicalHistory({
-      userId,
-      bloodGroup,
-      allergies,
-      chronicDiseases,
-      medications,
-    });
+    // Upsert so re-submitting the form updates instead of creating duplicates
+    const history = await MedicalHistory.findOneAndUpdate(
+      { userId },
+      { bloodGroup, allergies, chronicDiseases, medications },
+      { new: true, upsert: true, runValidators: true },
+    );
 
-    await history.save();
-
-    return res.status(201).json({
+    return res.status(200).json({
       success: true,
-      message: "Medical history saved successfully",
+      message: "Medical history saved",
       data: history,
     });
-  } catch (error) {
-    console.error("Medical Save Error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Error saving medical history",
-      error: error.message,
-    });
+  } catch (err) {
+    console.error("Medical history save error:", err.message);
+    return res.status(500).json({ success: false, message: "Error saving medical history" });
   }
 };
 
-module.exports = { saveMedicalHistory };
+// GET /api/medical — Retrieve own medical history
+const getMedicalHistory = async (req, res) => {
+  try {
+    const history = await MedicalHistory.findOne({ userId: req.user._id });
+    return res.json(history || {});
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Error fetching medical history" });
+  }
+};
+
+module.exports = { saveMedicalHistory, getMedicalHistory };

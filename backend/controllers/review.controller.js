@@ -1,4 +1,5 @@
 const Review = require("../models/Review");
+const Appointment = require("../models/Appointment"); // ← was missing, caused ReferenceError
 const Notification = require("../models/Notification");
 
 // Create review/rating for doctor
@@ -6,21 +7,34 @@ exports.createReview = async (req, res) => {
   try {
     const { appointmentId, rating, comment } = req.body;
 
-    // Verify appointment belongs to user
+    if (!appointmentId || !rating) {
+      return res.status(400).json({ msg: "appointmentId and rating are required" });
+    }
+
+    // Verify appointment belongs to user and is completed
     const appointment = await Appointment.findOne({
       _id: appointmentId,
-      userId: req.user.id,
-      status: { $in: ["completed"] },
+      userId: req.user._id,
+      status: "completed",
     }).populate("doctorId");
 
     if (!appointment) {
       return res
         .status(400)
-        .json({ msg: "Valid completed appointment required" });
+        .json({ msg: "Valid completed appointment required to leave a review" });
+    }
+
+    // Check for duplicate review
+    const existingReview = await Review.findOne({
+      userId: req.user._id,
+      appointmentId,
+    });
+    if (existingReview) {
+      return res.status(409).json({ msg: "You have already reviewed this appointment" });
     }
 
     const review = new Review({
-      userId: req.user.id,
+      userId: req.user._id,
       doctorId: appointment.doctorId._id,
       appointmentId,
       rating,
@@ -29,12 +43,12 @@ exports.createReview = async (req, res) => {
 
     await review.save();
 
-    // Send notification to doctor
+    // Notify doctor
     await Notification.create({
       userId: appointment.doctorId._id,
       type: "review",
-      title: `New Review from ${req.user.firstName}`,
-      message: `You received a ${rating}/5 rating${comment ? ` with comment: "${comment.substring(0, 100)}..."` : ""}`,
+      title: "New Patient Review",
+      message: `You received a ${rating}/5 rating${comment ? `: "${comment.substring(0, 80)}"` : ""}`,
       data: { reviewId: review._id },
     });
 
@@ -44,7 +58,7 @@ exports.createReview = async (req, res) => {
   }
 };
 
-// Get reviews for specific doctor
+// Get reviews for a doctor (public)
 exports.getDoctorReviews = async (req, res) => {
   try {
     const { doctorId } = req.params;
@@ -54,32 +68,24 @@ exports.getDoctorReviews = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(20);
 
-    // Calculate average rating
     const avgRating =
       reviews.length > 0
-        ? (
-            reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-          ).toFixed(1)
+        ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
         : 0;
 
-    res.json({
-      reviews,
-      avgRating: parseFloat(avgRating),
-      count: reviews.length,
-    });
+    res.json({ reviews, avgRating: parseFloat(avgRating), count: reviews.length });
   } catch (err) {
     res.status(500).json({ msg: "Error fetching reviews" });
   }
 };
 
-// Get all user reviews
+// Get my reviews
 exports.getMyReviews = async (req, res) => {
   try {
-    const reviews = await Review.find({ userId: req.user.id })
+    const reviews = await Review.find({ userId: req.user._id })
       .populate("doctorId", "firstName lastName specialization")
       .populate("appointmentId", "date status")
       .sort({ createdAt: -1 });
-
     res.json(reviews);
   } catch (err) {
     res.status(500).json({ msg: "Error fetching reviews" });

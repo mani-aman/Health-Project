@@ -61,7 +61,7 @@ const Profile = () => {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Phone:</span>
-              <span>{profile?.phone || 'Not set'}</span>
+              <span>{profile?.mobile || 'Not set'}</span>
             </div>
             {profile?.healthProfile?.bmi && (
               <div className="flex justify-between p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl">

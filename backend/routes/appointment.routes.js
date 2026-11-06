@@ -1,7 +1,6 @@
 const router = require("express").Router();
-const { auth, doctorAuth } = require("../middleware/auth.middleware");
+const { authenticate, authorizeRoles } = require("../middleware/auth.middleware");
 
-const appointmentController = require("../controllers/appointment.controller");
 const {
   bookAppointment,
   getMyAppointments,
@@ -10,14 +9,19 @@ const {
   confirmAppointment,
   rejectAppointment,
   completeAppointment,
-} = appointmentController;
+} = require("../controllers/appointment.controller");
+
+// auth = any authenticated user
+const auth = authenticate;
+// doctorAuth = authenticated + doctor role
+const doctorOnly = [authenticate, authorizeRoles("doctor")];
 
 router.post("/book", auth, bookAppointment);
 router.get("/my", auth, getMyAppointments);
-router.get("/doctor", doctorAuth, getDoctorAppointments);
+router.get("/doctor", doctorOnly, getDoctorAppointments);
 router.put("/cancel/:id", auth, cancelAppointment);
-router.put("/confirm/:id", doctorAuth, confirmAppointment);
-router.put("/reject/:id", doctorAuth, rejectAppointment);
-router.put("/complete/:id", doctorAuth, completeAppointment);
+router.put("/confirm/:id", doctorOnly, confirmAppointment);
+router.put("/reject/:id", doctorOnly, rejectAppointment);
+router.put("/complete/:id", doctorOnly, completeAppointment);
 
 module.exports = router;

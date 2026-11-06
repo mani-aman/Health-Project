@@ -9,7 +9,7 @@ const Register = () => {
     lastName: '',
     email: '',
     password: '',
-    phone: ''
+    mobile: ''
   })
   const [loading, setLoading] = useState(false)
   const { signup, logout } = useAuthStore()
@@ -86,7 +86,7 @@ const Register = () => {
               type="tel"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
               disabled={loading}
             />
           </div>

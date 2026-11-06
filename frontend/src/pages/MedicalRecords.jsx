@@ -109,7 +109,7 @@ const MedicalRecords = () => {
       ) : (
         <div className="space-y-3">
           {records.map((rec) => {
-            const fileUrl = rec?.path ? `http://127.0.0.1:5000/${rec.path}` : null
+            const fileUrl = rec?._id ? `/api/users/records/${rec._id}/download` : null
             return (
               <div key={rec._id} className="p-4 bg-white border border-gray-100 rounded-2xl shadow-sm">
                 <div className="flex items-start justify-between gap-3">

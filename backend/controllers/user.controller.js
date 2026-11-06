@@ -1,7 +1,9 @@
+const path = require("path");
 const User = require("../models/auth.model");
 const Prescription = require("../models/Prescription");
 const MedicalRecord = require("../models/MedicalRecord");
 const Appointment = require("../models/Appointment");
+const AuditLog = require("../models/AuditLog");
 
 // Get user profile
 exports.getProfile = async (req, res) => {
@@ -136,5 +138,40 @@ exports.getPatientPrescriptions = async (req, res) => {
     res.json(prescriptions);
   } catch (err) {
     res.status(500).json({ msg: "Error fetching patient prescriptions" });
+  }
+};
+
+// Authenticated file download — replaces public static serve
+exports.downloadRecord = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const userRole = req.user.role;
+
+    // Admins can download any record; users can only download their own
+    const query = ["protected_admin", "super_admin", "admin", "doctor"].includes(userRole)
+      ? { _id: req.params.id }
+      : { _id: req.params.id, userId };
+
+    const record = await MedicalRecord.findOne(query);
+    if (!record) {
+      return res.status(404).json({ msg: "Record not found or access denied" });
+    }
+
+    // Log admin access to patient files
+    if (["protected_admin", "super_admin", "admin"].includes(userRole)) {
+      await AuditLog.create({
+        actorId: userId,
+        actorRole: userRole,
+        action: "medical_record_view",
+        targetId: record._id,
+        targetType: "MedicalRecord",
+        details: { filename: record.filename, patientId: record.userId },
+        ipAddress: req.ip,
+      });
+    }
+
+    res.sendFile(path.resolve(record.path));
+  } catch (err) {
+    res.status(500).json({ msg: "Download failed" });
   }
 };

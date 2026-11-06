@@ -85,15 +85,17 @@ queryFn: () => api.get('/prescriptions/mine').then(res => res.data).catch(e=>{co
   const bookMutation = useMutation({
     mutationFn: ({ doctorId, date, time }) => api.post('/appointments/book', { doctorId, date, time }),
     onMutate: () => {
-      // Keep the success toast from stacking/lingering for long periods
-      // by ensuring loading->success uses a stable toast id.
-      toast.loading('Booking appointment...')
+      return toast.loading('Booking appointment...')
     },
-    onSuccess: () => {
+    onSuccess: (_data, _vars, toastId) => {
+      toast.dismiss(toastId)
       toast.success('Appointment booked successfully!')
       queryClient.invalidateQueries({ queryKey: ['appointments'] })
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Booking failed'),
+    onError: (err, _vars, toastId) => {
+      toast.dismiss(toastId)
+      toast.error(err.response?.data?.message || 'Booking failed')
+    },
   })
 
 
@@ -376,7 +378,7 @@ queryFn: () => api.get('/prescriptions/mine').then(res => res.data).catch(e=>{co
                         </div>
                         <div className="ml-4">
                           <p className="font-semibold text-gray-900">
-                            Dr. {apt.doctorId?.firstName} {apt.doctorId?.lastName}
+                            Dr. {apt.doctorId?.name || `${apt.doctorId?.firstName || ''} ${apt.doctorId?.lastName || ''}`.trim() || 'Unknown'}
                           </p>
                           <div className="flex items-center text-sm text-gray-500 mt-1">
                             <FiClock className="w-4 h-4 mr-1" />

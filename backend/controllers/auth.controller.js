@@ -3,323 +3,154 @@ const Doctor = require("../models/Doctor");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
+const { normalizeRole } = require("../middleware/auth.middleware");
 
-// 🔹 Signup
-exports.signup = async (req, res) => {
-  try {
-    const { firstName, lastName, email, mobile, password } = req.body;
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-    // ✅ validation
-    if (!firstName || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Required fields missing",
-      });
-    }
-
-    // ✅ check existing user
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: "User already exists",
-      });
-    }
-
-    // ✅ hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // ✅ create user
-    const user = await User.create({
-      firstName,
-      lastName,
-      email,
-      mobile,
-      password: hashedPassword,
-      role: "patient",
-    });
-
-    // ✅ Improved Gmail transporter (App Password ready)
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.warn(
-        "⚠️ EMAIL_USER or EMAIL_PASS missing in .env - Emails disabled",
-      );
-    }
-
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false, // true for 465, false for other ports
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
-
-    // ✅ send email (wrapped in try-catch so signup fail na ho)
-    try {
-      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        await transporter.sendMail({
-          from: `"Health AI" <${process.env.EMAIL_USER}>`,
-          to: email,
-          subject: "✅ Signup Successful - Welcome to Health AI!",
-          html: `
-            <h2>Hello ${firstName}!</h2>
-            <p>Your account has been created successfully 🎉</p>
-            <p>Thanks,<br>Health AI Team</p>
-            <hr>
-            <small>This is an automated message.</small>
-          `,
-        });
-        console.log("✅ Welcome email sent to:", email);
-      }
-    } catch (emailError) {
-      console.error(
-        "❌ Email failed for",
-        email,
-        ":",
-        emailError.response || emailError.message,
-      );
-    }
-
-    // ✅ create token
-    const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" },
-    );
-
-    return res.status(201).json({
-      success: true,
-      message: "Signup successful",
-      token,
-      user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-      },
-    });
-  } catch (err) {
-    console.error("Signup Error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
-  }
+const signToken = (user) => {
+  return jwt.sign(
+    { id: user._id, email: user.email, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" },
+  );
 };
 
-// 🔹 Doctor Signup
-exports.doctorSignup = async (req, res) => {
+const safeUser = (user) => ({
+  id: user._id,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+  role: user.role,
+  status: user.status,
+});
+
+const sendWelcomeEmail = async (email, firstName, subject) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
   try {
-    const {
-      firstName,
-      lastName,
-      email,
-      mobile,
-      password,
-      specialization,
-      experience,
-      fees,
-      availability,
-    } = req.body;
-
-    // ✅ validation
-    if (!firstName || !email || !password || !specialization) {
-      return res.status(400).json({
-        success: false,
-        message: "Required fields missing",
-      });
-    }
-
-    // ✅ check existing user
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: "User already exists",
-      });
-    }
-
-    // ✅ hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // ✅ create user with doctor role
-    const user = await User.create({
-      firstName,
-      lastName,
-      email,
-      mobile,
-      password: hashedPassword,
-      role: "doctor",
-      specialization,
-      experience: Number(experience) || 0,
-    });
-
-    // ✅ create doctor profile
-    console.log("🚀 Creating doctor profile for user:", user._id);
-    const doctorProfile = await Doctor.create({
-      userId: user._id,
-      name: `${firstName} ${lastName || ""}`.trim(),
-      specialization,
-      experience: Number(experience) || 0,
-      fees: Number(fees) || 0,
-      availability: availability || {
-        days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-        slots: ["09:00 AM", "11:00 AM", "02:00 PM", "04:00 PM"],
-      },
-      status: "active",
-    });
-    console.log(
-      "✅ DOCTOR CREATED:",
-      doctorProfile._id,
-      doctorProfile.name,
-      "- Active status",
-    );
-
-    // ✅ Improved Gmail transporter (App Password ready)
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.warn(
-        "⚠️ EMAIL_USER or EMAIL_PASS missing in .env - Emails disabled",
-      );
-    }
-
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 587,
       secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      tls: { rejectUnauthorized: false },
     });
-
-    // ✅ send welcome email
-    try {
-      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        await transporter.sendMail({
-          from: `"Health AI" <${process.env.EMAIL_USER}>`,
-          to: email,
-          subject: "✅ Doctor Registration Successful - Welcome to Health AI!",
-          html: `
-            <h2>Hello Dr. ${firstName}!</h2>
-            <p>Your doctor account has been created successfully 🎉</p>
-            <p><strong>Specialization:</strong> ${specialization}</p>
-            <p>You can now log in to the Doctor Portal to manage appointments and patients.</p>
-            <p>Thanks,<br>Health AI Team</p>
-            <hr>
-            <small>This is an automated message.</small>
-          `,
-        });
-        console.log("✅ Doctor welcome email sent to:", email);
-      }
-    } catch (emailError) {
-      console.error(
-        "❌ Email failed for",
-        email,
-        ":",
-        emailError.response || emailError.message,
-      );
-    }
-
-    // ✅ create token
-    const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" },
-    );
-
-    return res.status(201).json({
-      success: true,
-      message: "Doctor signup successful",
-      token,
-      user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-      },
-      doctorProfile,
+    await transporter.sendMail({
+      from: `"HealthAI" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject,
+      html: `<h2>Hello ${firstName}!</h2><p>Your HealthAI account has been created successfully.</p><p>Thanks,<br>HealthAI Team</p>`,
     });
   } catch (err) {
-    console.error("Doctor Signup Error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    // Email failure must never break the signup flow
+    console.error("Email send failed:", err.message);
   }
 };
 
-// 🔹 Login
+// ─── POST /api/auth/signup  (Normal User only) ───────────────────────────────
+
+exports.signup = async (req, res) => {
+  try {
+    const { firstName, lastName, email, mobile, password } = req.body;
+
+    if (!firstName || !lastName || !email || !password) {
+      return res
+        .status(400)
+        .json({ success: false, message: "firstName, lastName, email and password are required" });
+    }
+    if (password.length < 8) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Password must be at least 8 characters" });
+    }
+
+    const existing = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existing) {
+      return res.status(409).json({ success: false, message: "Email already registered" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const user = await User.create({
+      firstName,
+      lastName,
+      email: email.toLowerCase().trim(),
+      mobile,
+      password: hashedPassword,
+      role: "user",   // ← always user. Never trust frontend role
+      status: "active",
+    });
+
+    await sendWelcomeEmail(user.email, user.firstName, "Welcome to HealthAI!");
+
+    const token = signToken(user);
+
+    return res.status(201).json({
+      success: true,
+      message: "Account created successfully",
+      token,
+      user: safeUser(user),
+    });
+  } catch (err) {
+    console.error("Signup error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ─── POST /api/auth/login  (All roles — single endpoint) ────────────────────
+
 exports.login = async (req, res) => {
   try {
-    // Debug: log login payload safely (no password)
     const { email, password } = req.body;
-    console.log("Login attempt:", { email, hasPassword: Boolean(password) });
 
-    // ✅ validation
     if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and password required",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email and password are required" });
     }
 
-    // ✅ find user
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid email",
-      });
+      // Generic message — do not reveal whether email exists
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid credentials" });
     }
 
-    // ✅ compare password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid password",
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid credentials" });
     }
 
-    // ✅ create token
-    const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" },
-    );
+    if (user.status === "blocked" || user.status === "inactive") {
+      return res
+        .status(403)
+        .json({ success: false, message: "Account is disabled. Contact support." });
+    }
 
-    // ✅ send response
+    const token = signToken(user);
+
     return res.status(200).json({
       success: true,
       message: "Login successful",
       token,
-      user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName || "",
-        email: user.email,
-        role: user.role,
-      },
+      user: safeUser(user),
     });
   } catch (err) {
-    console.error("Login Error:", err);
-    console.error("Login Error Stack:", err?.stack);
-    // Return detailed error message in dev (so frontend shows it)
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: err?.message || String(err),
-      stack: err?.stack,
-    });
+    // ⚠️ Never expose err.stack or err.message in production responses
+    console.error("Login error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
+};
+
+// ─── POST /api/auth/doctor-signup  ──────────────────────────────────────────
+// BLOCKED – Doctors cannot self-register. Only admins can create doctor accounts.
+
+exports.doctorSignup = async (req, res) => {
+  return res.status(403).json({
+    success: false,
+    message:
+      "Public doctor registration is disabled. Doctor accounts are created by administrators.",
+  });
 };

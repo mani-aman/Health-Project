@@ -1,44 +1,6 @@
-// const express = require("express");
-// const router = express.Router();
-// const { adminAuth } = require("../middleware/auth.middleware");
-// const {
-//   dashboardStats,
-//   getDoctors,
-//   createDoctor,
-//   updateDoctor,
-//   deleteDoctor,
-//   getAllAppointments,
-//   updateAppointmentStatus,
-//   getUsers,
-//   updateUser,
-//   seedDoctors,
-// } = require("../controllers/admin.controller");
-
-// // Dashboard
-// router.get("/stats", adminAuth, dashboardStats);
-
-// // Doctors CRUD
-// router.get("/doctors", adminAuth, getDoctors);
-// router.post("/doctors", adminAuth, createDoctor);
-// router.put("/doctors/:id", adminAuth, updateDoctor);
-// router.delete("/doctors/:id", adminAuth, deleteDoctor);
-
-// // Appointments
-// router.get("/appointments", adminAuth, getAllAppointments);
-// router.put("/appointments/:id/status", adminAuth, updateAppointmentStatus);
-
-// // Users
-// router.get("/users", adminAuth, getUsers);
-// router.put("/users/:id", adminAuth, updateUser);
-
-// // Seed
-// router.post("/seed/doctors", adminAuth, seedDoctors);
-
-// module.exports = router;
-
 const express = require("express");
 const router = express.Router();
-const { adminAuth } = require("../middleware/auth.middleware");
+const { authenticate, authorizeRoles } = require("../middleware/auth.middleware");
 const {
   dashboardStats,
   getDoctors,
@@ -52,35 +14,35 @@ const {
   seedDoctors,
 } = require("../controllers/admin.controller");
 
-// ✅ Admin signup: removed from public surface.
-// Admin accounts must be created manually by developers or via a protected backend-only process.
-// Keeping the controller exists for dev, but this route will now be blocked.
-router.post("/signup", (req, res) => {
+// Legacy admin routes — accessible by protected_admin, super_admin, and legacy 'admin'
+const adminOnly = [authenticate, authorizeRoles("protected_admin", "super_admin", "admin")];
+
+// Block public admin signup
+router.post("/signup", (_req, res) => {
   return res.status(403).json({
     success: false,
-    message:
-      "Admin signup is disabled. Admin accounts can only be created manually by developers.",
+    message: "Admin signup is disabled. Use the bootstrap process.",
   });
 });
 
 // Dashboard
-router.get("/stats", adminAuth, dashboardStats);
+router.get("/stats", adminOnly, dashboardStats);
 
 // Doctors CRUD
-router.get("/doctors", adminAuth, getDoctors);
-router.post("/doctors", adminAuth, createDoctor);
-router.put("/doctors/:id", adminAuth, updateDoctor);
-router.delete("/doctors/:id", adminAuth, deleteDoctor);
+router.get("/doctors", adminOnly, getDoctors);
+router.post("/doctors", adminOnly, createDoctor);
+router.put("/doctors/:id", adminOnly, updateDoctor);
+router.delete("/doctors/:id", adminOnly, deleteDoctor);
 
 // Appointments
-router.get("/appointments", adminAuth, getAllAppointments);
-router.put("/appointments/:id/status", adminAuth, updateAppointmentStatus);
+router.get("/appointments", adminOnly, getAllAppointments);
+router.put("/appointments/:id/status", adminOnly, updateAppointmentStatus);
 
 // Users
-router.get("/users", adminAuth, getUsers);
-router.put("/users/:id", adminAuth, updateUser);
+router.get("/users", adminOnly, getUsers);
+router.put("/users/:id", adminOnly, updateUser);
 
-// Seed
-router.post("/seed/doctors", adminAuth, seedDoctors);
+// Seed (dev only)
+router.post("/seed/doctors", adminOnly, seedDoctors);
 
 module.exports = router;
